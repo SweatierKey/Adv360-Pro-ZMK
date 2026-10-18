@@ -40,61 +40,25 @@ jobs:
         run: west init -l config
       - name: West Update
         run: west update
-      - name: Fix UEFI USB Boot Protocol compatibility
+      - name: Fix USB SOF disconnect and force USB transport
         run: |
+          sed -i '/select USB_DEVICE_SOF/d' zmk/app/Kconfig
           python3 - << 'EOF'
           from pathlib import Path
 
-          # 1. Remove select USB_DEVICE_SOF from zmk/app/Kconfig
-          kconfig = Path("zmk/app/Kconfig")
-          kconfig.write_text(kconfig.read_text().replace("\tselect USB_DEVICE_SOF\n", ""))
+          # Keep USB HID ready when BIOS sends SET_INTERFACE
+          usb_c = Path("zmk/app/src/usb.c")
+          usb_c.write_text(usb_c.read_text().replace(
+              "    case USB_DC_CONFIGURED:\n",
+              "    case USB_DC_CONFIGURED:\n    case USB_DC_INTERFACE:\n"
+          ))
 
-          # 2. ACK SET_IDLE / GET_IDLE in zephyr/subsys/usb/device/class/hid/core.c when SOF is disabled
-          core_c = Path("zephyr/subsys/usb/device/class/hid/core.c")
-          txt = core_c.read_text()
-          txt = txt.replace(
-              "static int hid_on_get_idle(struct hid_device_info *dev_data,\n"
-              "\t\t\t   struct usb_setup_packet *setup, int32_t *len,\n"
-              "\t\t\t   uint8_t **data)\n{\n#ifdef CONFIG_USB_DEVICE_SOF",
-              "static int hid_on_get_idle(struct hid_device_info *dev_data,\n"
-              "\t\t\t   struct usb_setup_packet *setup, int32_t *len,\n"
-              "\t\t\t   uint8_t **data)\n{\n\tstatic uint8_t idle_zero = 0U;\n\t*data = &idle_zero;\n\t*len = sizeof(idle_zero);\n\treturn 0;\n#if 0"
-          )
-          txt = txt.replace(
-              "static int hid_on_set_idle(struct hid_device_info *dev_data,\n"
-              "\t\t\t   struct usb_setup_packet *setup, int32_t *len,\n"
-              "\t\t\t   uint8_t **data)\n{\n#ifdef CONFIG_USB_DEVICE_SOF",
-              "static int hid_on_set_idle(struct hid_device_info *dev_data,\n"
-              "\t\t\t   struct usb_setup_packet *setup, int32_t *len,\n"
-              "\t\t\t   uint8_t **data)\n{\n\treturn 0;\n#if 0"
-          )
-          core_c.write_text(txt)
-
-          # 3. Support Boot Protocol Report ID 0 in zmk/app/src/usb_hid.c (GET_REPORT & SET_REPORT LEDs)
-          usb_hid_c = Path("zmk/app/src/usb_hid.c")
-          uh = usb_hid_c.read_text()
-          uh = uh.replace(
-              "        case ZMK_HID_REPORT_ID_KEYBOARD: {",
-              "        case 0:\n        case ZMK_HID_REPORT_ID_KEYBOARD: {"
-          )
-          uh = uh.replace(
-              "    case HID_REPORT_TYPE_OUTPUT:\n        switch (setup->wValue & HID_GET_REPORT_ID_MASK) {",
-              "    case HID_REPORT_TYPE_OUTPUT:\n        switch (setup->wValue & HID_GET_REPORT_ID_MASK) {\n        case 0:\n            return 0;"
-          )
-          usb_hid_c.write_text(uh)
-
-          # 4. Place HID Boot Keyboard on Interface 0 before CDC ACM in zephyr/subsys/usb/device/class/cdc_acm.c
-          cdc_c = Path("zephyr/subsys/usb/device/class/cdc_acm.c")
-          ct = cdc_c.read_text()
-          ct = ct.replace(
-              "\tdesc->iad_cdc.bFirstInterface = bInterfaceNumber;\n",
-              "\tdesc->if0_cm.bDataInterface = bInterfaceNumber + 1;\n\tdesc->iad_cdc.bFirstInterface = bInterfaceNumber;\n"
-          )
-          ct = ct.replace(
-              "#define CDC_ACM_CFG_AND_DATA_DEFINE(x)\t\t\t\t\t\\\n\tUSBD_CLASS_DESCR_DEFINE(primary, x)",
-              "#define CDC_ACM_CFG_AND_DATA_DEFINE(x)\t\t\t\t\t\\\n\tUSBD_CLASS_DESCR_DEFINE(primary, 9)"
-          )
-          cdc_c.write_text(ct)
+          # Always prefer USB transport for wired-only usage
+          ep_c = Path("zmk/app/src/endpoints.c")
+          ep_c.write_text(ep_c.read_text().replace(
+              "COND_CODE_1(IS_ENABLED(CONFIG_ZMK_BLE), (ZMK_TRANSPORT_BLE), (ZMK_TRANSPORT_USB))",
+              "ZMK_TRANSPORT_USB"
+          ))
           EOF
       - name: West Zephyr export
         run: west zephyr-export
@@ -152,61 +116,25 @@ jobs:
         run: west init -l config
       - name: West Update
         run: west update
-      - name: Fix UEFI USB Boot Protocol compatibility
+      - name: Fix USB SOF disconnect and force USB transport
         run: |
+          sed -i '/select USB_DEVICE_SOF/d' zmk/app/Kconfig
           python3 - << 'EOF'
           from pathlib import Path
 
-          # 1. Remove select USB_DEVICE_SOF from zmk/app/Kconfig
-          kconfig = Path("zmk/app/Kconfig")
-          kconfig.write_text(kconfig.read_text().replace("\tselect USB_DEVICE_SOF\n", ""))
+          # Keep USB HID ready when BIOS sends SET_INTERFACE
+          usb_c = Path("zmk/app/src/usb.c")
+          usb_c.write_text(usb_c.read_text().replace(
+              "    case USB_DC_CONFIGURED:\n",
+              "    case USB_DC_CONFIGURED:\n    case USB_DC_INTERFACE:\n"
+          ))
 
-          # 2. ACK SET_IDLE / GET_IDLE in zephyr/subsys/usb/device/class/hid/core.c when SOF is disabled
-          core_c = Path("zephyr/subsys/usb/device/class/hid/core.c")
-          txt = core_c.read_text()
-          txt = txt.replace(
-              "static int hid_on_get_idle(struct hid_device_info *dev_data,\n"
-              "\t\t\t   struct usb_setup_packet *setup, int32_t *len,\n"
-              "\t\t\t   uint8_t **data)\n{\n#ifdef CONFIG_USB_DEVICE_SOF",
-              "static int hid_on_get_idle(struct hid_device_info *dev_data,\n"
-              "\t\t\t   struct usb_setup_packet *setup, int32_t *len,\n"
-              "\t\t\t   uint8_t **data)\n{\n\tstatic uint8_t idle_zero = 0U;\n\t*data = &idle_zero;\n\t*len = sizeof(idle_zero);\n\treturn 0;\n#if 0"
-          )
-          txt = txt.replace(
-              "static int hid_on_set_idle(struct hid_device_info *dev_data,\n"
-              "\t\t\t   struct usb_setup_packet *setup, int32_t *len,\n"
-              "\t\t\t   uint8_t **data)\n{\n#ifdef CONFIG_USB_DEVICE_SOF",
-              "static int hid_on_set_idle(struct hid_device_info *dev_data,\n"
-              "\t\t\t   struct usb_setup_packet *setup, int32_t *len,\n"
-              "\t\t\t   uint8_t **data)\n{\n\treturn 0;\n#if 0"
-          )
-          core_c.write_text(txt)
-
-          # 3. Support Boot Protocol Report ID 0 in zmk/app/src/usb_hid.c (GET_REPORT & SET_REPORT LEDs)
-          usb_hid_c = Path("zmk/app/src/usb_hid.c")
-          uh = usb_hid_c.read_text()
-          uh = uh.replace(
-              "        case ZMK_HID_REPORT_ID_KEYBOARD: {",
-              "        case 0:\n        case ZMK_HID_REPORT_ID_KEYBOARD: {"
-          )
-          uh = uh.replace(
-              "    case HID_REPORT_TYPE_OUTPUT:\n        switch (setup->wValue & HID_GET_REPORT_ID_MASK) {",
-              "    case HID_REPORT_TYPE_OUTPUT:\n        switch (setup->wValue & HID_GET_REPORT_ID_MASK) {\n        case 0:\n            return 0;"
-          )
-          usb_hid_c.write_text(uh)
-
-          # 4. Place HID Boot Keyboard on Interface 0 before CDC ACM in zephyr/subsys/usb/device/class/cdc_acm.c
-          cdc_c = Path("zephyr/subsys/usb/device/class/cdc_acm.c")
-          ct = cdc_c.read_text()
-          ct = ct.replace(
-              "\tdesc->iad_cdc.bFirstInterface = bInterfaceNumber;\n",
-              "\tdesc->if0_cm.bDataInterface = bInterfaceNumber + 1;\n\tdesc->iad_cdc.bFirstInterface = bInterfaceNumber;\n"
-          )
-          ct = ct.replace(
-              "#define CDC_ACM_CFG_AND_DATA_DEFINE(x)\t\t\t\t\t\\\n\tUSBD_CLASS_DESCR_DEFINE(primary, x)",
-              "#define CDC_ACM_CFG_AND_DATA_DEFINE(x)\t\t\t\t\t\\\n\tUSBD_CLASS_DESCR_DEFINE(primary, 9)"
-          )
-          cdc_c.write_text(ct)
+          # Always prefer USB transport for wired-only usage
+          ep_c = Path("zmk/app/src/endpoints.c")
+          ep_c.write_text(ep_c.read_text().replace(
+              "COND_CODE_1(IS_ENABLED(CONFIG_ZMK_BLE), (ZMK_TRANSPORT_BLE), (ZMK_TRANSPORT_USB))",
+              "ZMK_TRANSPORT_USB"
+          ))
           EOF
       - name: West Zephyr export
         run: west zephyr-export
