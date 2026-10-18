@@ -40,6 +40,8 @@ jobs:
         run: west init -l config
       - name: West Update
         run: west update
+      - name: Fix USB SOF disconnect with USB Boot (ZMK PR #3070)
+        run: sed -i '/select USB_DEVICE_SOF/d' zmk/app/Kconfig
       - name: West Zephyr export
         run: west zephyr-export
       - name: West Build (left)
@@ -96,6 +98,8 @@ jobs:
         run: west init -l config
       - name: West Update
         run: west update
+      - name: Fix USB SOF disconnect with USB Boot (ZMK PR #3070)
+        run: sed -i '/select USB_DEVICE_SOF/d' zmk/app/Kconfig
       - name: West Zephyr export
         run: west zephyr-export
       - name: West Build (left)
